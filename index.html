@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Genomic Research Copilot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root { --bg-color: #020617; --panel-color: #0f172a; --accent-color: #0ea5e9; }
+        body { background-color: var(--bg-color); color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; overflow: hidden; }
+        .panel { background-color: var(--panel-color); border: 1px solid #1e293b; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        .scroll-custom::-webkit-scrollbar { width: 6px; }
+        .scroll-custom::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        .markdown-body h1 { font-size: 1.25rem; font-weight: 800; color: #fff; margin: 1.5rem 0 1rem; border-bottom: 1px solid #1e293b; padding-bottom: 0.5rem; }
+        .markdown-body h2 { font-size: 1rem; font-weight: 700; color: #fff; margin: 1.25rem 0 0.75rem; }
+        .markdown-body p { margin-bottom: 1rem; line-height: 1.6; }
+        .markdown-body ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+        .markdown-body strong { color: #fff; font-weight: 600; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col text-slate-300">
+
+    <header class="h-16 border-b border-slate-800 flex items-center px-6 justify-between shrink-0 bg-slate-900/30">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-sky-600 flex items-center justify-center font-bold text-white shadow-lg shadow-sky-900/20">G</div>
+            <h1 class="text-lg font-semibold text-white tracking-tight">Genomic Research Copilot</h1>
+        </div>
+        <div class="flex items-center gap-4 text-xs font-medium">
+            <input type="password" id="api-key" placeholder="Enter Gemini API Key" onchange="saveKey(this.value)" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 w-48 focus:border-sky-500 outline-none text-slate-300">
+            <span id="conn-label" class="text-slate-400">Not Connected</span>
+            <div id="conn-indicator" class="w-2.5 h-2.5 rounded-full bg-slate-600"></div>
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden p-6 gap-6">
+        <aside class="w-80 panel flex flex-col p-5 shrink-0 overflow-hidden">
+            <div class="flex justify-between items-center mb-5">
+                <h2 class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Project Workspace <span id="file-counter" class="text-sky-400 ml-1">(0)</span></h2>
+                <button onclick="document.getElementById('file-input').click()" class="bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded-md text-[11px] font-bold transition">Upload</button>
+            </div>
+            
+            <div class="flex gap-2 mb-3 text-[10px] text-slate-500">
+                <button onclick="toggleAllFiles(true)" class="hover:text-sky-400">Select All</button>
+                <button onclick="toggleAllFiles(false)" class="hover:text-sky-400">Clear</button>
+            </div>
+
+            <input type="file" id="file-input" multiple accept=".fasta,.gff,.vcf,.csv,.txt,.pdf" class="hidden" onchange="handleFiles(this.files)">
+
+            <div id="file-list" class="flex-1 overflow-y-auto scroll-custom space-y-2"></div>
+
+            <div class="mt-4 pt-4 border-t border-slate-700/50 space-y-2">
+                <button onclick="generateReport()" class="w-full bg-slate-800 hover:bg-slate-700 text-sky-400 py-2.5 rounded-lg text-xs font-semibold transition border border-slate-700">Generate Report</button>
+                <button onclick="generateHypotheses()" class="w-full bg-sky-600 hover:bg-sky-500 text-white py-2.5 rounded-lg text-xs font-semibold transition shadow-lg shadow-sky-900/20">Generate Hypotheses</button>
+            </div>
+        </aside>
+
+        <section class="flex-1 flex flex-col gap-6 overflow-hidden">
+            <div id="dashboard" class="flex-1 overflow-y-auto scroll-custom grid grid-cols-1 gap-6">
+                <div class="panel p-8">
+                    <h3 class="text-sm font-semibold text-slate-200 mb-6">Research Workspace</h3>
+                    <div id="hypotheses-list" class="mt-6 space-y-4">
+                        <p class="text-slate-500 text-sm italic text-center py-20">Upload files and select them to begin analysis.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <aside class="w-80 panel flex flex-col overflow-hidden">
+            <div class="p-4 border-b border-slate-700/50 text-xs font-bold text-sky-400 uppercase tracking-widest bg-slate-900/30">Research Copilot</div>
+            <div id="chat-messages" class="flex-1 overflow-y-auto p-5 space-y-5 scroll-custom"></div>
+            
+            <div id="suggestions" class="px-5 py-2 flex flex-wrap gap-2">
+                <button onclick="addChatMessage('Summarize selected documents')" class="px-2.5 py-1 bg-slate-800 hover:bg-sky-900 text-slate-400 hover:text-white rounded-md text-[10px] transition border border-slate-700">Summarize</button>
+                <button onclick="addChatMessage('Detect mutations in the files')" class="px-2.5 py-1 bg-slate-800 hover:bg-sky-900 text-slate-400 hover:text-white rounded-md text-[10px] transition border border-slate-700">Detect mutations</button>
+                <button onclick="addChatMessage('Analyze GC content')" class="px-2.5 py-1 bg-slate-800 hover:bg-sky-900 text-slate-400 hover:text-white rounded-md text-[10px] transition border border-slate-700">GC content</button>
+            </div>
+
+            <div class="p-4 border-t border-slate-700/50">
+                <input type="text" id="chat-input" disabled onkeydown="if(event.key==='Enter') { addChatMessage(this.value); this.value = ''; }" placeholder="Enter API Key above to begin..." class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-sm focus:border-sky-500 transition-all outline-none disabled:opacity-50 shadow-inner">
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        let activeFiles = [];
+        let currentReportText = "";
+        const API_MODEL = "gemini-2.5-flash";
+
+        // Initialization
+        window.onload = () => {
+            const savedKey = localStorage.getItem('gemini_api_key');
+            if(savedKey) {
+                document.getElementById('api-key').value = savedKey;
+                updateConnStatus(true);
+            }
+        };
+
+        function saveKey(key) {
+            localStorage.setItem('gemini_api_key', key);
+            updateConnStatus(key.length > 0);
+        }
+
+        function updateConnStatus(connected) {
+            const connIndicator = document.getElementById('conn-indicator');
+            const connLabel = document.getElementById('conn-label');
+            const chatInput = document.getElementById('chat-input');
+            
+            if(connected) {
+                connIndicator.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]";
+                connLabel.innerText = "Connected";
+                chatInput.disabled = false;
+                chatInput.placeholder = "Ask genomic research questions...";
+            } else {
+                connIndicator.className = "w-2.5 h-2.5 rounded-full bg-slate-600";
+                connLabel.innerText = "Not Connected";
+                chatInput.disabled = true;
+            }
+        }
+
+        function formatMarkdown(text) {
+            return text
+                .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+                .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+                .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
+                .replace(/^\- (.*$)/gim, '<li>$1</li>')
+                .replace(/(<li>.*<\/li>)/gim, '<ul>$1</ul>')
+                .replace(/\n\n/gim, '<p></p>')
+                .replace(/\n/gim, '<br>');
+        }
+
+        async function callGemini(prompt) {
+            const key = localStorage.getItem('gemini_api_key');
+            if (!key) return "Error: API Key missing.";
+            
+            const selectedFiles = activeFiles.filter(f => f.selected);
+            const fileContext = selectedFiles.length > 0 
+                ? selectedFiles.map(f => `- ${f.name} (${f.type})`).join('\n') 
+                : "No files selected.";
+            
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${API_MODEL}:generateContent?key=${key}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: `Instructions: Be concise and structured. Use Markdown.\n\nProject Files (Only analyze these):\n${fileContext}\n\nQuery: ${prompt}` }] }] })
+                });
+                const result = await response.json();
+                return result.candidates[0].content.parts[0].text;
+            } catch (err) {
+                return `API Error: ${err.message}`;
+            }
+        }
+
+        function handleFiles(files) {
+            Array.from(files).forEach(f => {
+                activeFiles.push({ name: f.name, type: f.name.split('.').pop().toUpperCase(), selected: true });
+            });
+            renderFileList();
+        }
+
+        function toggleAllFiles(state) {
+            activeFiles.forEach(f => f.selected = state);
+            renderFileList();
+        }
+
+        function renderFileList() {
+            const container = document.getElementById('file-list');
+            container.innerHTML = activeFiles.map((f, i) => `
+                <div class="bg-slate-950/50 p-2 rounded-lg border border-slate-700/50 flex gap-2 items-center text-xs group hover:border-sky-500/50 transition">
+                    <input type="checkbox" ${f.selected ? 'checked' : ''} onchange="activeFiles[${i}].selected = this.checked" class="accent-sky-500">
+                    <span class="truncate flex-1 text-slate-200">${f.name}</span>
+                    <button onclick="activeFiles.splice(${i}, 1); renderFileList()" class="text-slate-500 hover:text-red-400">×</button>
+                </div>
+            `).join('');
+            document.getElementById('file-counter').innerText = `(${activeFiles.length})`;
+        }
+
+        async function addChatMessage(q) {
+            if (!q.trim()) return;
+            const chat = document.getElementById('chat-messages');
+            chat.innerHTML += `<div class="p-3 bg-sky-900/20 rounded-lg text-xs text-right border border-sky-900/30">You: ${q}</div>`;
+            const response = await callGemini(q);
+            chat.innerHTML += `<div class="p-3 bg-slate-800 rounded-lg text-xs border border-slate-700 markdown-body">${formatMarkdown(response)}</div>`;
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        async function generateHypotheses() {
+            const container = document.getElementById('hypotheses-list');
+            container.innerHTML = `<div class="text-sky-400 text-xs animate-pulse">Generating hypotheses from selected files...</div>`;
+            const text = await callGemini("Analyze selected files and generate 3 research hypotheses, using: Summary, Evidence, Limitations, Next Steps, Confidence.");
+            container.innerHTML = `<div class="markdown-body text-xs p-5 bg-slate-950/50 rounded-xl border border-slate-800">${formatMarkdown(text)}</div>`;
+        }
+
+        async function generateReport() {
+            const container = document.getElementById('hypotheses-list');
+            container.innerHTML = `<div class="text-sky-400 text-xs animate-pulse">Synthesizing report from selected files...</div>`;
+            const text = await callGemini("Create a genomic research report: Project Summary, Dataset Statistics, Cross-Document Insights, and Clinical Relevance.");
+            currentReportText = text;
+            container.innerHTML = `
+                <div class="flex items-center justify-between border-b border-slate-700/50 pb-4 mb-4">
+                    <h2 class="text-xs font-bold text-white uppercase tracking-widest">Research Report Preview</h2>
+                    <button onclick="downloadReport()" class="bg-sky-600 hover:bg-sky-500 text-white px-4 py-1.5 rounded-lg text-[10px] font-bold transition">Download</button>
+                </div>
+                <div class="markdown-body text-xs p-6 bg-slate-950/50 rounded-xl border border-slate-800">${formatMarkdown(text)}</div>
+            `;
+        }
+
+        function downloadReport() {
+            if (!currentReportText) return;
+            const blob = new Blob([currentReportText], {type: 'text/markdown'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob); a.download = 'Research_Report.md'; a.click();
+        }
+    </script>
+</body>
+</html>
